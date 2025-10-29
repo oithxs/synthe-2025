@@ -29,6 +29,7 @@ void init_wavetable_f() {
     for (int i = 0; i < TABLE_SIZE; ++i) {
         // 現在位置を 0.0 ~ 2*PI の範囲に変換
         double angle = 2.0 * M_PI * i / TABLE_SIZE;
+        printf("M_PI = %f\n", M_PI);
 
         // 例：基音(sin) + 2倍音(sin*2) + 3倍音(sin*3) を合成した波形
         wavetable_f[i] = 0.5 * sin(angle) + 0.3 * sin(2 * angle) + 0.2 * sin(3 * angle);
@@ -40,9 +41,10 @@ void init_wavetable() {
     printf("整数型ウェーブテーブルを生成中...\n");
     for (int i = 0; i < TABLE_SIZE; ++i) {
         double angle = 2.0 * M_PI * i / TABLE_SIZE;
+        printf("M_PI = %f\n", M_PI);
         // -1.0 ~ 1.0 の値を AMPLITUDE 倍して int16_t に変換
         wavetable[i] = (int16_t)((0.5 * sin(angle) + 0.3 * sin(2 * angle) + 0.2 * sin(3 * angle)) * AMPLITUDE);
-        printf("[%d]: %d\n", i, wavetable[i]);
+        //printf("[%d]: %d\n", i, wavetable[i]);
     }
 }
 
