@@ -36,6 +36,15 @@ class AmplitudeEditorApp:
         info_label = tk.Label(self.master, text="U/Dキーで振幅、L/Rキーで位置を操作します", font=("Helvetica", 12))
         info_label.pack(pady=5)
 
+        # ファイル名表示ラベル
+        file_info_label = tk.Label(self.master, text="現在の波形ファイル:", font=('', 12))
+        file_info_label.pack(pady=6)
+        # 表示用 StringVar と実ファイルパスを分離
+        self.file_name_var = tk.StringVar(value='未選択です')
+        self.file_path = None
+        file_name_label = tk.Label(textvariable=self.file_name_var, font=('', 12))
+        file_name_label.pack(pady=6)
+
         # キャンバス
         self.canvas = tk.Canvas(self.master, width=self.CANVAS_WIDTH, height=self.CANVAS_HEIGHT, bg="white")
         self.canvas.pack(pady=10, padx=10)
@@ -75,15 +84,10 @@ class AmplitudeEditorApp:
         button_fileopen.bind('<ButtonPress>', self.file_open_dialog)
         button_fileopen.grid(row=0, column=4, padx=5)
 
-        self.file_name = ""#tk.StringVar()
-        #self.file_name.set('未選択です')
-        #label = tk.Label(textvariable=self.file_name, font=('', 12))
-        #label.pack(pady=0)
-
         button_filewrite = tk.Button(button_frame, text='波形ファイルを書き込み', font=('', 10),
                            width=22, height=1, bg='#999999', activebackground="#aaaaaa")
         button_filewrite.bind('<ButtonPress>', self.file_save_dialog)
-        button_filewrite.grid(row=1, column=4, padx=5)
+        button_filewrite.grid(row=2, column=4, padx=5)
 
         # キーボード入力を受け付ける（U/D/L/R と矢印に対応）
         self.master.bind('<Key>', self.on_key)
@@ -203,41 +207,89 @@ class AmplitudeEditorApp:
         selected_song = self.music_listbox.get(selected_index)
         print(f"選択された曲: {selected_song}")
         # ここで選択された曲に基づいて再生処理を実行します
-        # 例:
-        os.system(f'gcc -o hoge sound_test.c mml_parser.c -lm -lasound && ./hoge {selected_song}.mml &')
+        print(f"選択中の波形ファイル: {self.file_name_var.get()}")
+        os.system(f'gcc -o hoge sound_test.c mml_parser.c -lm -lasound && ./hoge {self.file_name_var.get()} {selected_song}.mml &')
 
     
     def load_preset(self):
-        with open(self.file_name, "r", encoding="utf-8") as infile:
-            for line in infile:
-                self.amp = [float(x) for x in line.split()]
-            
+        """
+        self.file_path が指すファイルから振幅データを読み込む。
+        ファイル内の最初の非空行を読み、スペース区切りの整数列として self.amp を更新する。
+        要素数が足りない場合は残りを 0 で埋める。範囲は AMP_MIN/AMP_MAX にクランプ。
+        """
+        if not self.file_path:
+            print("load_preset: ファイルが指定されていません")
+            return
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as infile:
+                for line in infile:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    parts = line.split()
+                    vals = []
+                    for p in parts:
+                        try:
+                            v = int(float(p))
+                        except ValueError:
+                            v = 0
+                        # clamp
+                        if v > self.AMP_MAX:
+                            v = self.AMP_MAX
+                        if v < self.AMP_MIN:
+                            v = self.AMP_MIN
+                        vals.append(v)
+                    # fill or trim to WAVE_LENGTH
+                    if len(vals) < self.WAVE_LENGTH:
+                        vals.extend([0] * (self.WAVE_LENGTH - len(vals)))
+                    else:
+                        vals = vals[:self.WAVE_LENGTH]
+                    self.amp = vals
+                    break
             self.draw_amplitudes()
-            for i in self.amp:
-                print(f"lp: i={i}")
+            # ensure pointer in range
+            if self.pos >= len(self.amp):
+                self.pos = 0
+            self.draw_pointer()
+        except Exception as e:
+            print(f"load_preset: 読み込みエラー: {e}")
         
     
     def file_open_dialog(self, event):
         fTyp = [("", "*")]
         iDir = os.path.abspath(os.path.dirname(__file__))
-        self.file_name = tk.filedialog.askopenfilename(filetypes=fTyp, initialdir=iDir)
-        #if len(file_name) == 0:
-        #    self.file_name.set('選択をキャンセルしました')
-        #else:
-        #    self.file_name.set(file_name)
+        path = tk.filedialog.askopenfilename(filetypes=fTyp, initialdir=iDir)
+        if not path:
+            self.file_name_var.set('選択をキャンセルしました')
+            self.file_path = None
+            return
+        self.file_path = path
+        self.file_name_var.set(os.path.basename(path))
         self.load_preset()
 
     def save_wave(self):
-        with open(self.file_name, "w", encoding="utf-8") as infile:
-            for i in self.amp:
-                infile.write(f"{i} ")
+        """
+        現在の self.file_path に振幅データを書き込む。
+        """
+        if not self.file_path:
+            print("save_wave: 保存先が指定されていません")
+            return
+        try:
+            with open(self.file_path, "w", encoding="utf-8") as outfile:
+                outfile.write(" ".join(str(int(v)) for v in self.amp))
+            print(f"保存しました: {self.file_path}")
+        except Exception as e:
+            print(f"save_wave: 保存エラー: {e}")
         
     
     def file_save_dialog(self, event):
         fTyp = [("", "*")]
         iDir = os.path.abspath(os.path.dirname(__file__))
-        self.file_name = tk.filedialog.asksaveasfilename(filetypes=fTyp, initialdir=iDir)
-        print(f"saving to {self.file_name}")
+        path = tk.filedialog.asksaveasfilename(filetypes=fTyp, initialdir=iDir)
+        if not path:
+            return
+        self.file_path = path
+        self.file_name_var.set(os.path.basename(path))
         self.save_wave()
     
     def on_key(self, event):

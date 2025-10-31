@@ -11,7 +11,9 @@
 #define CHANNELS        1       // チャンネル数 (1: モノラル, 2: ステレオ)
 #define TONE_FREQ       440.0   // 音の周波数 (Hz) - 440Hzは「ラ」(A4)の音
 #define AMPLITUDE       32760   // 振幅 (16bitの最大値に近い値)
-#define TABLE_SIZE      1024    // ウェーブテーブルのサイズ（2のべき乗が一般的）
+#define TABLE_SIZE        32    // ウェーブテーブルのサイズ（2のべき乗が一般的）
+#define INC_AMPLITUDE   4096    // 増分用振幅
+#define FILE_TABLE_SIZE   32    // ファイルから読み込むウェーブテーブルのサイズ
 
 // グローバル変数としてウェーブテーブルを定義
 // GUIから変更する場合、この配列を書き換える
@@ -46,7 +48,32 @@ void init_wavetable() {
         // -1.0 ~ 1.0 の値を AMPLITUDE 倍して int16_t に変換
         wavetable[i] = (int16_t)((0.5 * sin(angle) + 0.3 * sin(2 * angle) + 0.2 * sin(3 * angle)) * AMPLITUDE);
         //printf("[%d]: %d\n", i, wavetable[i]);
+        //printf("[%d]: %f\n", i, (0.5 * sin(angle) + 0.3 * sin(2 * angle) + 0.2 * sin(3 * angle)));
     }
+}
+
+// テキストファイルから波形数値列を読み込む関数
+int load_wavetable_from_file(const char *filename) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        fprintf(stderr, "ファイルを開けません: %s\n", filename);
+        return -1;
+    }
+    for (int i = 0; i < FILE_TABLE_SIZE; ++i) {
+        if (fscanf(fp, "%d", &wavetable[i]) != 1) {
+            fprintf(stderr, "ウェーブテーブルの読み込みに失敗しました。\n");
+            fclose(fp);
+            return -1;
+        }
+        wavetable[i] *= INC_AMPLITUDE; // 振幅を増加
+    }
+    // FILE_TABLE_SIZEからTABLE_SIZEに適応するようコピー
+    for (int i = FILE_TABLE_SIZE; i < TABLE_SIZE; ++i) {
+        wavetable[i] = wavetable[i % FILE_TABLE_SIZE];
+        printf("[%d]: %d\n", i, wavetable[i]);
+    }
+    fclose(fp);
+    return 0;
 }
 
 // MIDIノートナンバーを周波数に変換するヘルパー関数
@@ -156,7 +183,8 @@ int main(int argc, char *argv[]) {
     int err;
     
     // ウェーブテーブルを初期化
-    init_wavetable();
+    //init_wavetable();
+    load_wavetable_from_file("preset1.txt");
     
     // PCMデバイスを再生用に開く。 "default" は標準の出力デバイスを意味する
     if ((err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
@@ -180,15 +208,25 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ハードウェアパラメータを設定できません: %s\n", snd_strerror(err));
         return 1;
     }
-    
-    // --- MMLファイルの解析とイベントリストの取得 ---
-    if (argc < 2) {
-        fprintf(stderr, "使い方: %s <mmlファイル名>\n", argv[0]);
+
+    // コマンドライン引数の処理
+    if (argc < 3) {
+        fprintf(stderr, "使い方: %s <wavetableファイル名> <mmlファイル名>\n", argv[0]);
         // デバッグ用に過去のテストコードを実行
         debug_play_note(handle, params, err);
         return 1;
     }
-    const char *mml_input = argv[1];
+    const char *wavetable_file = argv[1];
+    const char *mml_input = argv[2];
+
+    // --- wavetableテキストの読み込み ---
+    if (load_wavetable_from_file(wavetable_file) != 0) {
+        fprintf(stderr, "ウェーブテーブルの読み込みに失敗しました: %s\n", wavetable_file);
+        return 1;
+    }
+    printf("ウェーブテーブルをファイルから読み込みました: %s\n", wavetable_file);
+
+    // --- MMLファイルの解析とイベントリストの取得 ---
 
     // --- MMLファイルを読み込む ---
     FILE *fp = fopen(mml_input, "rb");
