@@ -56,7 +56,7 @@ class AmplitudeEditorApp:
 
         # 音楽選択リストボックス
         self.music_listbox = tk.Listbox(button_frame, height=4, exportselection=False)
-        music_options = ['Bad-Apple!!', 'Mario_Theme', 'Old_KCSSong']
+        music_options = ['Bad-Apple!!', 'Mario_Theme', 'Old_KCS_Song']
         for option in music_options:
             self.music_listbox.insert(tk.END, option)
         self.music_listbox.grid(row=0, column=3, padx=5)

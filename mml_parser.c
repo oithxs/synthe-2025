@@ -108,10 +108,10 @@ MmlEvent* parse_mml(const char *mml_string, int sample_rate, size_t *out_num_eve
             (void)strtol(p, (char **)&next_p, 10);
             p = next_p;
             continue;
-        } else if (command == '>') { // オクターブアップ
+        } else if (command == '<') { // オクターブアップ
             current_octave++;
             continue;
-        } else if (command == '<') { // オクターブダウン
+        } else if (command == '>') { // オクターブダウン
             current_octave--;
             continue;
         }
