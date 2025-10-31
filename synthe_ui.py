@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 import tkinter.filedialog
+from tkinter import ttk
 
 class AmplitudeEditorApp:
     """
@@ -43,7 +44,7 @@ class AmplitudeEditorApp:
         button_frame = tk.Frame(self.master)
         button_frame.pack(pady=5)
 
-        # ボタン
+        # 波形編集ボタン
         button_u = tk.Button(button_frame, text="Up (U)", command=self.click_button_u)
         button_u.grid(row=0, column=1, padx=5)
         button_l = tk.Button(button_frame, text="Left (L)", command=self.click_button_l)
@@ -53,10 +54,26 @@ class AmplitudeEditorApp:
         button_r = tk.Button(button_frame, text="Right (R)", command=self.click_button_r)
         button_r.grid(row=1, column=2, padx=5)
 
+        # 音楽選択リストボックス
+        self.music_listbox = tk.Listbox(button_frame, height=4, exportselection=False)
+        music_options = ['Bad-Apple!!', 'Mario_Theme', 'Old_KCSSong']
+        for option in music_options:
+            self.music_listbox.insert(tk.END, option)
+        self.music_listbox.grid(row=0, column=3, padx=5)
+        self.music_listbox.select_set(0)  # デフォルトで最初の曲を選択
+        #self.music_listbox.bind('<<ListboxSelect>>', self.on_music_select)
+
+        # Playボタン
+        button_play = tk.Button(button_frame, text='Play', font=('', 10),
+                           width=18, height=1, bg='#999999', activebackground="#aaaaaa")
+        button_play.bind('<ButtonPress>', self.click_button_play)
+        button_play.grid(row=1, column=3, padx=5)
+
+        # 波形ファイルの読み込み・保存ボタン
         button_fileopen = tk.Button(button_frame, text='波形ファイルを開く', font=('', 10),
                            width=18, height=1, bg='#999999', activebackground="#aaaaaa")
         button_fileopen.bind('<ButtonPress>', self.file_open_dialog)
-        button_fileopen.grid(row=1, column=3, padx=5)
+        button_fileopen.grid(row=0, column=4, padx=5)
 
         self.file_name = ""#tk.StringVar()
         #self.file_name.set('未選択です')
@@ -174,6 +191,21 @@ class AmplitudeEditorApp:
         else:
             print("これより右に移動できません")
         print(f"pos = {self.pos}")
+    
+    def click_button_play(self,event=None):
+        """
+        'play'ボタンがクリックされたときの処理。音楽を再生する。
+        """
+        selected_index = self.music_listbox.curselection()
+        if not selected_index:
+            print("曲が選択されていません")
+            return
+        selected_song = self.music_listbox.get(selected_index)
+        print(f"選択された曲: {selected_song}")
+        # ここで選択された曲に基づいて再生処理を実行します
+        # 例:
+        os.system(f'gcc -o hoge sound_test.c mml_parser.c -lm -lasound && ./hoge {selected_song}.mml &')
+
     
     def load_preset(self):
         with open(self.file_name, "r", encoding="utf-8") as infile:
