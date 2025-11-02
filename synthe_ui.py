@@ -42,7 +42,8 @@ class AmplitudeEditorApp:
         # 表示用 StringVar と実ファイルパスを分離
         self.file_name_var = tk.StringVar(value='未選択です')
         self.file_path = None
-        file_name_label = tk.Label(textvariable=self.file_name_var, font=('', 12))
+        self.selected_wav = ''
+        file_name_label = tk.Label(textvariable=self.selected_wav, font=('', 12))
         file_name_label.pack(pady=6)
 
         # キャンバス
@@ -65,12 +66,23 @@ class AmplitudeEditorApp:
 
         # 音楽選択リストボックス
         self.music_listbox = tk.Listbox(button_frame, height=4, exportselection=False)
-        music_options = ['Bad-Apple!!', 'Mario_Theme', 'Old_KCS_Song']
+        music_files = sorted(os.listdir(self.get_curdir() + "/mmls"))
+        print(f"利用可能な音楽ファイル: {music_files}")
+        # 拡張子を消してlistに入れる
+        music_options = []
+        for f in music_files:
+            if f.endswith('.mml'):
+                music_options.append(f[:-4])
+        # music_options = ['Bad-Apple!!', 'Mario_Theme', 'Mario_Star', 'Old_KCS_Song', 'idol']
         for option in music_options:
             self.music_listbox.insert(tk.END, option)
         self.music_listbox.grid(row=0, column=3, padx=5)
         self.music_listbox.select_set(0)  # デフォルトで最初の曲を選択
-        #self.music_listbox.bind('<<ListboxSelect>>', self.on_music_select)
+        # 矢印キーのイベントバインドを上書き
+        # <Up> と <Down> キーのデフォルト動作を無効化
+        # bind に関数参照を渡す（() を付けると即時実行される）
+        self.music_listbox.bind('<Up>', self.disable_arrow_keys)
+        self.music_listbox.bind('<Down>', self.disable_arrow_keys)
 
         # Playボタン
         button_play = tk.Button(button_frame, text='Play', font=('', 10),
@@ -78,19 +90,47 @@ class AmplitudeEditorApp:
         button_play.bind('<ButtonPress>', self.click_button_play)
         button_play.grid(row=1, column=3, padx=5)
 
-        # 波形ファイルの読み込み・保存ボタン
-        button_fileopen = tk.Button(button_frame, text='波形ファイルを開く', font=('', 10),
-                           width=18, height=1, bg='#999999', activebackground="#aaaaaa")
-        button_fileopen.bind('<ButtonPress>', self.file_open_dialog)
-        button_fileopen.grid(row=0, column=4, padx=5)
+        # 波形ファイル選択リストボックス
+        self.wavetable_listbox = tk.Listbox(button_frame, height=4, exportselection=False)
+        wt_files = sorted(os.listdir(self.get_curdir() + "/wavetables"))
+        print(f"利用可能な波形ファイル: {wt_files}")
+        # 拡張子を消してlistに入れる
+        wavetable_options = []
+        for f in wt_files:
+            if f.endswith('.txt'):
+                wavetable_options.append(f[:-4])
+        #wavetable_options = ['sine1', 'square1', 'sawtooth', 'triangle', 'pulse']
+        for option in wavetable_options:
+            self.wavetable_listbox.insert(tk.END, option)
+        self.wavetable_listbox.grid(row=0, column=4, padx=5)
+        self.wavetable_listbox.select_set(0)  # デフォルトで最初のファイルを選択
+        self.wavetable_listbox.bind('<<ListboxSelect>>', self.load_preset)
+        # 矢印キーのイベントバインドを上書き
+        # <Up> と <Down> キーのデフォルト動作を無効化
+        self.wavetable_listbox.bind('<Up>', self.disable_arrow_keys)
+        self.wavetable_listbox.bind('<Down>', self.disable_arrow_keys)
 
+        # 波形ファイルの読み込み・保存ボタン
+        #button_fileopen = tk.Button(button_frame, text='波形ファイルを開く', font=('', 10),
+        #                   width=18, height=1, bg='#999999', activebackground="#aaaaaa")
+        #button_fileopen.bind('<ButtonPress>', self.file_open_dialog)
+        #button_fileopen.grid(row=2, column=4, padx=5)
+        
+        # 波形ファイルリストの更新ボタン
+        button_refresh = tk.Button(button_frame, text='波形ファイルリストを更新', font=('', 10),
+                           width=22, height=1, bg='#999999', activebackground="#aaaaaa")
+        button_refresh.bind('<ButtonPress>', self.refresh_wavetable_list)
+        button_refresh.grid(row=1, column=4, padx=5)
+
+        # 波形ファイルの保存ボタン
         button_filewrite = tk.Button(button_frame, text='波形ファイルを書き込み', font=('', 10),
                            width=22, height=1, bg='#999999', activebackground="#aaaaaa")
         button_filewrite.bind('<ButtonPress>', self.file_save_dialog)
         button_filewrite.grid(row=2, column=4, padx=5)
 
         # キーボード入力を受け付ける（U/D/L/R と矢印に対応）
-        self.master.bind('<Key>', self.on_key)
+        # bind_all にしておくと listbox にフォーカスがあっても on_key が呼ばれる
+        self.master.bind_all('<Key>', self.on_key)
         # フォーカスがないとキーイベントが来ないのでフォーカスを設定
         self.master.focus_set()
 
@@ -99,6 +139,13 @@ class AmplitudeEditorApp:
         self.draw_amplitudes()
         self.draw_center_line()
         self.draw_pointer()
+        self.load_preset()
+    
+    def disable_arrow_keys(self, event):
+        # listbox上での上下矢印のデフォルト選択移動を抑止し、
+        # アプリ共通のキー処理を実行する（振幅操作を有効にする）
+        self.on_key(event)
+        return "break"
 
     def draw_grid(self):
         """
@@ -183,7 +230,7 @@ class AmplitudeEditorApp:
             self.draw_pointer()
         else:
             print("これより左に移動できません")
-        print(f"pos = {self.pos}")
+        #print(f"pos = {self.pos}")
 
     def click_button_r(self):
         """
@@ -194,34 +241,53 @@ class AmplitudeEditorApp:
             self.draw_pointer()
         else:
             print("これより右に移動できません")
-        print(f"pos = {self.pos}")
+        #print(f"pos = {self.pos}")
+    
+    def get_selected_wav(self):
+        selected_index = self.wavetable_listbox.curselection()
+        if not selected_index:
+            return None
+        return self.wavetable_listbox.get(selected_index)
+    
+    def get_selected_music(self):
+        selected_index = self.music_listbox.curselection()
+        if not selected_index:
+            return None
+        return self.music_listbox.get(selected_index)
+    
+    def get_curdir(self):
+        return os.path.abspath(os.path.dirname(__file__))
     
     def click_button_play(self,event=None):
         """
         'play'ボタンがクリックされたときの処理。音楽を再生する。
         """
-        selected_index = self.music_listbox.curselection()
-        if not selected_index:
-            print("曲が選択されていません")
-            return
-        selected_song = self.music_listbox.get(selected_index)
+        
+        self.selected_wav = self.get_selected_wav()
+        print(f"選択された波形ファイル: {self.selected_wav}")
+        selected_song = self.get_selected_music()
         print(f"選択された曲: {selected_song}")
-        # ここで選択された曲に基づいて再生処理を実行します
-        print(f"選択中の波形ファイル: {self.file_name_var.get()}")
-        os.system(f'gcc -o hoge sound_test.c mml_parser.c -lm -lasound && ./hoge {self.file_name_var.get()} {selected_song}.mml &')
-
-    
-    def load_preset(self):
+        
+        # ここで選択された曲に基づいて再生処理を実行する
+        wav_path = f"./wavetables/{self.selected_wav}.txt"
+        mml_path = f"./mmls/{selected_song}.mml"
+        cmd = f'gcc -o hoge sound_test.c mml_parser.c -lm -lasound && ./hoge "{wav_path}" "{mml_path}" &'
+        os.system(cmd)
+        
+    def load_preset(self, event=None):
         """
-        self.file_path が指すファイルから振幅データを読み込む。
+        wav_path が指すファイルから振幅データを読み込む。
         ファイル内の最初の非空行を読み、スペース区切りの整数列として self.amp を更新する。
         要素数が足りない場合は残りを 0 で埋める。範囲は AMP_MIN/AMP_MAX にクランプ。
         """
-        if not self.file_path:
+        self.selected_wav = self.get_selected_wav()
+        wav_path = os.path.abspath(os.path.dirname(__file__)) + f"/wavetables/{self.selected_wav}.txt"
+        print(f"load_preset: 読み込み元 = {wav_path}")
+        if not wav_path:
             print("load_preset: ファイルが指定されていません")
             return
         try:
-            with open(self.file_path, "r", encoding="utf-8") as infile:
+            with open(wav_path, "r", encoding="utf-8") as infile:
                 for line in infile:
                     line = line.strip()
                     if not line:
@@ -256,8 +322,9 @@ class AmplitudeEditorApp:
         
     
     def file_open_dialog(self, event):
-        fTyp = [("", "*")]
-        iDir = os.path.abspath(os.path.dirname(__file__))
+        fTyp = [("", ".txt")]
+        iDir = os.path.abspath(os.path.dirname(__file__))  + "/wavetables"
+        print(f"初期ディレクトリ: {iDir}")
         path = tk.filedialog.askopenfilename(filetypes=fTyp, initialdir=iDir)
         if not path:
             self.file_name_var.set('選択をキャンセルしました')
@@ -271,6 +338,7 @@ class AmplitudeEditorApp:
         """
         現在の self.file_path に振幅データを書き込む。
         """
+        print(f"save_wave: 保存先 = {self.file_path}")
         if not self.file_path:
             print("save_wave: 保存先が指定されていません")
             return
@@ -283,8 +351,8 @@ class AmplitudeEditorApp:
         
     
     def file_save_dialog(self, event):
-        fTyp = [("", "*")]
-        iDir = os.path.abspath(os.path.dirname(__file__))
+        fTyp = [("", ".txt")]
+        iDir = "./wavetables"
         path = tk.filedialog.asksaveasfilename(filetypes=fTyp, initialdir=iDir)
         if not path:
             return
@@ -297,6 +365,7 @@ class AmplitudeEditorApp:
         キーイベントハンドラ。letters (u/d/l/r) と矢印キーを処理して既存のボタン処理を呼ぶ。
         """
         k = (event.keysym or "").lower()
+        #print(f"on_key: 押されたキー = {k}")
         if k in ('u', 'up'):
             self.click_button_u()
         elif k in ('d', 'down'):
@@ -305,6 +374,18 @@ class AmplitudeEditorApp:
             self.click_button_l()
         elif k in ('r', 'right'):
             self.click_button_r()
+    
+    def refresh_wavetable_list(self, event):
+        self.wavetable_listbox.delete(0, tk.END)
+        wt_files = sorted(os.listdir(self.get_curdir() + "/wavetables"))
+        print(f"利用可能な波形ファイル: {wt_files}")
+        # 拡張子を消してlistに入れる
+        wavetable_options = []
+        for f in wt_files:
+            if f.endswith('.txt'):
+                wavetable_options.append(f[:-4])
+        for option in wavetable_options:
+            self.wavetable_listbox.insert(tk.END, option)
 
 if __name__ == "__main__":
     # ウィンドウの作成とアプリケーションの実行

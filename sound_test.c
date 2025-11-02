@@ -184,7 +184,8 @@ int main(int argc, char *argv[]) {
     
     // ウェーブテーブルを初期化
     //init_wavetable();
-    load_wavetable_from_file("preset1.txt");
+    // 絶対パス "/wavetables/..." は root 参照になってしまうので相対パスに変更
+    load_wavetable_from_file("wavetables/preset1.txt");
     
     // PCMデバイスを再生用に開く。 "default" は標準の出力デバイスを意味する
     if ((err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
