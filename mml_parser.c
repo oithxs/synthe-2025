@@ -62,29 +62,7 @@ MmlEvent* parse_mml(const char *mml_string, int sample_rate, size_t *out_num_eve
 
         int note_idx = -1;
         int note_length = current_length;
-
-        const char *p_before_num = p;
-        if (isdigit(*p_before_num)) {
-            // 数字が続く場合は音長の可能性があるので保存
-            note_length = (int)strtol(p_before_num, (char **)&next_p, 10);
-            p_before_num = next_p;
-        }
-
-        // --- 音長からサンプル数を計算 ---
-        double sec_per_quarter = 60.0 / current_tempo;
-        double sec_per_note = sec_per_quarter * (4.0 / (double)note_length);
-        uint32_t current_duration = (uint32_t)(sec_per_note * sample_rate);
-        
-        if (*p == '&') {
-            if (count > 0) { // 前のイベントが存在する場合
-                // 前のイベントに現在の音符の長さ（current_duration）を加算
-                events[count - 1].duration_samples += current_duration;
-                p++; // &を消費
-                continue; // イベント生成をスキップして次のコマンドへ
-            }
-            // タイ記号が最初に来た場合は無視
-            continue;
-        }
+        uint32_t current_duration = 0;
 
         // --- 制御コマンド (o, l, t) ---
         if (command == 'o') { // オクターブ oX
@@ -148,10 +126,22 @@ MmlEvent* parse_mml(const char *mml_string, int sample_rate, size_t *out_num_eve
                     events[count].note_number -= 1; // フラットは半音下げ
                     p++;
                 }
+
+                // 音長の解析
+                const char *p_before_dot = p;
+                if (isdigit(*p_before_dot)) {
+                    note_length = (int)strtol(p_before_dot, (char **)&next_p, 10);
+                    p = next_p;
+                }
             }
 
         } else if (command == 'r') { // 休符の処理
             events[count].note_number = 0; // 休符はNOTE=0
+            const char *p_before_dot = p;
+            if (isdigit(*p_before_dot)) {
+                note_length = (int)strtol(p_before_dot, (char **)&next_p, 10);
+                p = next_p;
+            }
         } else if (command == ',') { // トラック区切りの処理
             // トラック区切りは無視
             continue;
@@ -160,11 +150,39 @@ MmlEvent* parse_mml(const char *mml_string, int sample_rate, size_t *out_num_eve
             continue;
         }
 
+        // 音符の長さから再生時間を計算
+        double sec_per_quarter = 60.0 / current_tempo;
+        double sec_per_note = sec_per_quarter * (4.0 / (double)note_length);
+        current_duration = (uint32_t)(sec_per_note * sample_rate);
+
         // イベントをリストに追加
         events[count].duration_samples = current_duration;
         events[count].volume = current_volume;
         events[count].decay_rate = current_decay_rate;
         count++;
+
+        // タイ記号(&)の処理
+        if (*p == '&') {
+            const char *p_after_amp = p + 1;
+            if (isdigit(*p_after_amp)) {
+                p++; // '&' を消費
+                
+                int tied_length = 0;
+                // タイ後の音長数字を読み込む (例: '8')
+                tied_length = (int)strtol(p, (char **)&next_p, 10);
+                p = next_p;
+                
+                // タイで指定された音長 (例: 8分音符) の長さを計算し、イベントに加算
+                double sec_per_quarter_tied = 60.0 / current_tempo;
+                double sec_per_note_tied = sec_per_quarter_tied * (4.0 / (double)tied_length);
+                uint32_t tied_duration = (uint32_t)(sec_per_note_tied * sample_rate);
+                
+                // 最後に作成したイベントにタイの長さを加算
+                events[count - 1].duration_samples += tied_duration;
+            } else {
+                p++; // & の後に数字がない場合は '&' だけを消費
+            }
+        }
 
         // 付点音符(.)の処理
         // sec_per_note は元の音符の長さ（例：c4 なら 0.5秒）
