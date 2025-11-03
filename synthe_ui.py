@@ -97,7 +97,7 @@ class AmplitudeEditorApp:
         # 拡張子を消してlistに入れる
         wavetable_options = []
         for f in wt_files:
-            if f.endswith('.txt'):
+            if f.endswith('.wtx'):
                 wavetable_options.append(f[:-4])
         #wavetable_options = ['sine1', 'square1', 'sawtooth', 'triangle', 'pulse']
         for option in wavetable_options:
@@ -281,7 +281,7 @@ class AmplitudeEditorApp:
         要素数が足りない場合は残りを 0 で埋める。範囲は AMP_MIN/AMP_MAX にクランプ。
         """
         self.selected_wav = self.get_selected_wav()
-        wav_path = os.path.abspath(os.path.dirname(__file__)) + f"/wavetables/{self.selected_wav}.txt"
+        wav_path = os.path.abspath(os.path.dirname(__file__)) + f"/wavetables/{self.selected_wav}.wtx"
         print(f"load_preset: 読み込み元 = {wav_path}")
         if not wav_path:
             print("load_preset: ファイルが指定されていません")
@@ -322,7 +322,7 @@ class AmplitudeEditorApp:
         
     
     def file_open_dialog(self, event):
-        fTyp = [("", ".txt")]
+        fTyp = [("", ".wtx")]
         iDir = os.path.abspath(os.path.dirname(__file__))  + "/wavetables"
         print(f"初期ディレクトリ: {iDir}")
         path = tk.filedialog.askopenfilename(filetypes=fTyp, initialdir=iDir)
@@ -351,7 +351,7 @@ class AmplitudeEditorApp:
         
     
     def file_save_dialog(self, event):
-        fTyp = [("", ".txt")]
+        fTyp = [("", ".wtx")]
         iDir = "./wavetables"
         path = tk.filedialog.asksaveasfilename(filetypes=fTyp, initialdir=iDir)
         if not path:
@@ -382,7 +382,7 @@ class AmplitudeEditorApp:
         # 拡張子を消してlistに入れる
         wavetable_options = []
         for f in wt_files:
-            if f.endswith('.txt'):
+            if f.endswith('.wtx'):
                 wavetable_options.append(f[:-4])
         for option in wavetable_options:
             self.wavetable_listbox.insert(tk.END, option)
